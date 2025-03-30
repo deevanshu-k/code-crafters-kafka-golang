@@ -27,6 +27,6 @@ func main() {
 			os.Exit(1)
 		}
 		defer conn.Close()
-		conn.Write([]byte("Hello World"))
+		conn.Write([]byte{0, 0, 0, 0, 0, 0, 0, 7})
 	}
 }
