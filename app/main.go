@@ -21,12 +21,31 @@ func main() {
 		os.Exit(1)
 	}
 	for {
+		// Accept connection
 		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
 		defer conn.Close()
-		conn.Write([]byte{0, 0, 0, 0, 0, 0, 0, 7})
+
+		// Read from client into buffer of max size 1024 Bytes
+		buf := make([]byte, 1024)
+		if _, err := conn.Read(buf); err != nil {
+			fmt.Println("Error while reading the response.")
+		}
+
+		// Fetch correlation id
+		correlation_id := buf[8:12]
+
+		// Create response
+		response := []byte{0, 0, 0, 0}
+		response = append(response, correlation_id...)
+
+		// Send response
+		_, err = conn.Write(response)
+		if err != nil {
+			fmt.Println("Error sending response:", err)
+		}
 	}
 }
