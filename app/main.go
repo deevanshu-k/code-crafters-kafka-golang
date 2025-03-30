@@ -73,12 +73,16 @@ func buildResponse(correlation_id []byte, error_code []byte) (response []byte) {
 	maxVersion := make([]byte, 2)
 	binary.BigEndian.PutUint16(maxVersion, 4) // Must be at least 4
 
+	// Add Tagged Field Array (UNSIGNED_VARINT = 0)
+	taggedFields := []byte{0}
+
 	// Construct response body
 	responseBody := []byte{}
 	responseBody = append(responseBody, error_code...)
 	responseBody = append(responseBody, apiKey...)
 	responseBody = append(responseBody, minVersion...)
 	responseBody = append(responseBody, maxVersion...)
+	responseBody = append(responseBody, taggedFields...)
 
 	// Calculate final message size
 	binary.BigEndian.PutUint32(message_size, uint32(len(responseBody)+4)) // +4 for correlation id
