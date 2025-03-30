@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -27,25 +28,37 @@ func main() {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		defer conn.Close()
+		go handleRequest(conn)
+	}
+}
 
-		// Read from client into buffer of max size 1024 Bytes
-		buf := make([]byte, 1024)
-		if _, err := conn.Read(buf); err != nil {
-			fmt.Println("Error while reading the response.")
-		}
+func handleRequest(conn net.Conn) {
+	defer conn.Close()
 
-		// Fetch correlation id
-		correlation_id := buf[8:12]
+	// Read from client into buffer of max size 1024 Bytes
+	buf := make([]byte, 1024)
+	if _, err := conn.Read(buf); err != nil {
+		fmt.Println("Error while reading the response.")
+	}
 
-		// Create response
-		response := []byte{0, 0, 0, 0}
-		response = append(response, correlation_id...)
+	// Fetch request api key
+	request_api_version := binary.BigEndian.Uint16(buf[4:6])
+	error_code := []byte{0, 0}
+	if request_api_version > 4 || request_api_version < 0 {
+		error_code = []byte{0, 35}
+	}
 
-		// Send response
-		_, err = conn.Write(response)
-		if err != nil {
-			fmt.Println("Error sending response:", err)
-		}
+	// Fetch correlation id
+	correlation_id := buf[8:12]
+
+	// Create response
+	response := []byte{0, 0, 0, 0}
+	response = append(response, correlation_id...)
+	response = append(response, error_code...)
+
+	// Send response
+	_, err := conn.Write(response)
+	if err != nil {
+		fmt.Println("Error sending response:", err)
 	}
 }
