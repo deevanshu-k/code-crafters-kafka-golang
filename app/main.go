@@ -52,13 +52,41 @@ func handleRequest(conn net.Conn) {
 	correlation_id := buf[8:12]
 
 	// Create response
-	response := []byte{0, 0, 0, 0}
-	response = append(response, correlation_id...)
-	response = append(response, error_code...)
+	response := buildResponse(correlation_id, error_code)
 
 	// Send response
 	_, err := conn.Write(response)
 	if err != nil {
 		fmt.Println("Error sending response:", err)
 	}
+}
+
+func buildResponse(correlation_id []byte, error_code []byte) (response []byte) {
+	// Response header
+	message_size := make([]byte, 4)
+
+	// API_VERSIONS entry
+	apiKey := make([]byte, 2)
+	binary.BigEndian.PutUint16(apiKey, 18) // API key 18 (APIVersions)
+	minVersion := make([]byte, 2)
+	binary.BigEndian.PutUint16(minVersion, 0)
+	maxVersion := make([]byte, 2)
+	binary.BigEndian.PutUint16(maxVersion, 4) // Must be at least 4
+
+	// Construct response body
+	responseBody := []byte{}
+	responseBody = append(responseBody, error_code...)
+	responseBody = append(responseBody, apiKey...)
+	responseBody = append(responseBody, minVersion...)
+	responseBody = append(responseBody, maxVersion...)
+
+	// Calculate final message size
+	binary.BigEndian.PutUint32(message_size, uint32(len(responseBody)+4)) // +4 for correlation id
+
+	// Final response
+	response = append(response, message_size...)
+	response = append(response, correlation_id...)
+	response = append(response, responseBody...)
+
+	return
 }
