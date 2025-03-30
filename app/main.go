@@ -44,7 +44,7 @@ func handleRequest(conn net.Conn) {
 	// Fetch request api key
 	request_api_version := binary.BigEndian.Uint16(buf[4:6])
 	error_code := []byte{0, 0}
-	if request_api_version > 4 || request_api_version < 0 {
+	if request_api_version > 4 {
 		error_code = []byte{0, 35}
 	}
 
@@ -53,6 +53,8 @@ func handleRequest(conn net.Conn) {
 
 	// Create response
 	response := buildResponse(correlation_id, error_code)
+
+	fmt.Printf("%b", response)
 
 	// Send response
 	_, err := conn.Write(response)
@@ -74,7 +76,7 @@ func buildResponse(correlation_id []byte, error_code []byte) (response []byte) {
 	binary.BigEndian.PutUint16(maxVersion, 4) // Must be at least 4
 
 	// Add Tagged Field Array (UNSIGNED_VARINT = 0)
-	taggedFields := []byte{0}
+	taggedFields := encodeUnsignedVarint(0)
 
 	// Construct response body
 	responseBody := []byte{}
@@ -92,5 +94,17 @@ func buildResponse(correlation_id []byte, error_code []byte) (response []byte) {
 	response = append(response, correlation_id...)
 	response = append(response, responseBody...)
 
+	fmt.Printf("%d\n%d\n%d\n%d\n%d\n%d\n%d\n", message_size, correlation_id, error_code, apiKey, minVersion, maxVersion, taggedFields)
+
 	return
+}
+
+func encodeUnsignedVarint(value uint32) []byte {
+	var buf []byte
+	for value >= 0x80 {
+		buf = append(buf, byte(value)|0x80)
+		value >>= 7
+	}
+	buf = append(buf, byte(value))
+	return buf
 }
