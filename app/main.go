@@ -10,13 +10,15 @@ import (
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
 var _ = net.Listen
 var _ = os.Exit
+var PORT = "9092"
+var HOST = "0.0.0.0"
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
 	// Uncomment this block to pass the first stage
-	l, err := net.Listen("tcp", "0.0.0.0:9092")
+	l, err := net.Listen("tcp", fmt.Sprintf("%s:%s", HOST, PORT))
 	if err != nil {
 		fmt.Println("Failed to bind to port 9092")
 		os.Exit(1)
@@ -45,7 +47,7 @@ func handleRequest(conn net.Conn) {
 	request_api_version := binary.BigEndian.Uint16(buf[4:6])
 	error_code := []byte{0, 0}
 	if request_api_version > 4 {
-		error_code = []byte{0, 35}
+		error_code = []byte{0, 35} // For UnsupportedVersion
 	}
 
 	// Fetch correlation id
@@ -108,3 +110,10 @@ func encodeUnsignedVarint(value uint32) []byte {
 	buf = append(buf, byte(value))
 	return buf
 }
+
+/*
+ * REQUEST MESSAGE
+ * | SIZE (4 bytes) | HEADER | MESSAGE |
+ *
+ * HEADER V2: https://kafka.apache.org/protocol.html#protocol_messages
+ */
