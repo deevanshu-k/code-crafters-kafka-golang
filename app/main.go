@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"os"
 )
@@ -15,7 +16,7 @@ var HOST = "0.0.0.0"
 
 func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+	fmt.Println("> Logs from your program will appear here!")
 
 	// Uncomment this block to pass the first stage
 	l, err := net.Listen("tcp", fmt.Sprintf("%s:%s", HOST, PORT))
@@ -37,66 +38,76 @@ func main() {
 func handleRequest(conn net.Conn) {
 	defer conn.Close()
 
-	// Read from client into buffer of max size 1024 Bytes
-	buf := make([]byte, 1024)
-	if _, err := conn.Read(buf); err != nil {
-		fmt.Println("Error while reading the response.")
-	}
-
-	// Fetch request api key
-	request_api_version := binary.BigEndian.Uint16(buf[4:6])
-	error_code := []byte{0, 0}
-	if request_api_version > 4 {
-		error_code = []byte{0, 35} // For UnsupportedVersion
-	}
-
-	// Fetch correlation id
-	correlation_id := buf[8:12]
-
-	// Create response
-	response := buildResponse(correlation_id, error_code)
-
-	fmt.Printf("%b", response)
-
-	// Send response
-	_, err := conn.Write(response)
+	msg, err := readMessage(conn)
 	if err != nil {
-		fmt.Println("Error sending response:", err)
+		fmt.Println("> Error reading message: ", err.Error())
+		return
 	}
+
+	response, err := buildResponse(msg)
+	if err != nil {
+		fmt.Println("> Error building response: ", err.Error())
+		return
+	}
+
+	fmt.Printf("> %08b\n", response)
+
+	if _, err := conn.Write(response); err != nil {
+		fmt.Println("> Error writing response: ", err.Error())
+		return
+	}
+	fmt.Println("> Response sent successfully")
 }
 
-func buildResponse(correlation_id []byte, error_code []byte) (response []byte) {
-	// Response header
-	message_size := make([]byte, 4)
+// READS MESSAGES FROM THE CONNECTION
+// - First 4 bytes is used to get the size of the message
+// - Then read the message of that size
+// - Returns the message as a byte slice
+func readMessage(conn net.Conn) ([]byte, error) {
+	sizeBuf := make([]byte, 4)
+	if _, err := io.ReadFull(conn, sizeBuf); err != nil {
+		return nil, err
+	}
 
-	// API_VERSIONS entry
-	apiKey := make([]byte, 2)
-	binary.BigEndian.PutUint16(apiKey, 18) // API key 18 (APIVersions)
-	minVersion := make([]byte, 2)
-	binary.BigEndian.PutUint16(minVersion, 0)
-	maxVersion := make([]byte, 2)
-	binary.BigEndian.PutUint16(maxVersion, 4) // Must be at least 4
+	size := int32(binary.BigEndian.Uint32((sizeBuf)))
 
-	// Add Tagged Field Array (UNSIGNED_VARINT = 0)
-	taggedFields := encodeUnsignedVarint(0)
+	message := make([]byte, size)
+	if _, err := io.ReadFull(conn, message); err != nil {
+		return nil, err
+	}
 
-	// Construct response body
-	responseBody := []byte{}
-	responseBody = append(responseBody, error_code...)
-	responseBody = append(responseBody, apiKey...)
-	responseBody = append(responseBody, minVersion...)
-	responseBody = append(responseBody, maxVersion...)
-	responseBody = append(responseBody, taggedFields...)
+	return message, nil
+}
 
-	// Calculate final message size
-	binary.BigEndian.PutUint32(message_size, uint32(len(responseBody)+4)) // +4 for correlation id
+func buildResponse(message []byte) (response []byte, err error) {
+	if len(message) < 8 {
+		return nil, fmt.Errorf("message too short")
+	}
 
-	// Final response
-	response = append(response, message_size...)
-	response = append(response, correlation_id...)
-	response = append(response, responseBody...)
+	// apiKey := int16(binary.BigEndian.Uint16(message[0:2]))        // Api Key
+	apiVersion := int16(binary.BigEndian.Uint16(message[2:4]))    // Api Version
+	correlationID := int32(binary.BigEndian.Uint32(message[4:8])) // Correlation ID
 
-	fmt.Printf("%d\n%d\n%d\n%d\n%d\n%d\n%d\n", message_size, correlation_id, error_code, apiKey, minVersion, maxVersion, taggedFields)
+	binary.BigEndian.AppendUint32(response, uint32(correlationID)) // Correlation ID
+
+	errorCode := int16(0)
+	if 0 < apiVersion || apiVersion > 4 {
+		errorCode = 35 // UNSUPPORTED VERSION
+	}
+
+	binary.BigEndian.AppendUint16(response, uint16(errorCode)) // 16 bytes: Error Code
+	response = append(response, 0x02)                          // 08 bytes: Api Versions Length
+	response = append(response, 0x0012)                        // 16 bytes: Api Key
+	response = append(response, 0x0003)                        // 16 bytes: Min Version
+	response = append(response, 0x0004)                        // 16 bytes: Max Version
+	response = append(response, 0x00)                          // 08 bytes: Tagged Fields
+	response = append(response, 0x00000000)                    // 32 bytes: Throttle Time
+	response = append(response, 0x00)                          // 08 bytes: Tagged Fields
+
+	messageSize := make([]byte, 4)
+	binary.BigEndian.PutUint32(messageSize, uint32(len(response)))
+
+	response = append(messageSize, response...) // Prepend the size of the response
 
 	return
 }
