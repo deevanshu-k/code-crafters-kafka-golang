@@ -50,10 +50,7 @@ func handleRequest(conn net.Conn) {
 		return
 	}
 
-	fmt.Printf("> Request: %08b\n", msg)
 	fmt.Printf("> Request: %x\n", msg)
-
-	fmt.Printf("> Response: %08b\n", response)
 	fmt.Printf("> Response: %x\n", response)
 
 	if _, err := conn.Write(response); err != nil {
@@ -109,7 +106,7 @@ func readMessage(conn net.Conn) ([]byte, error) {
 // - RESPONSE-BODY:
 //   - ERROR-CODE: 2 bytes
 //   - API-VERSIONS-ARRAY:
-//     - ARRAY-LENGTH: 2 bytes
+//     - ARRAY-LENGTH: 1 byte
 //     - v1:
 //       - API-KEY: 2 bytes
 //       - MIN-VERSION: 2 bytes
@@ -128,9 +125,6 @@ func buildResponse(message []byte) (response []byte, err error) {
 	apiVersion := int16(binary.BigEndian.Uint16(message[2:4]))    // Api Version
 	correlationID := int32(binary.BigEndian.Uint32(message[4:8])) // Correlation ID
 
-	fmt.Printf("> API Version: %x\n", apiVersion)
-	fmt.Printf("> Correlation ID: %x\n", correlationID)
-
 	errorCode := int16(0)
 	if apiVersion < 0 || apiVersion > 4 {
 		errorCode = 35 // UNSUPPORTED VERSION
@@ -138,7 +132,7 @@ func buildResponse(message []byte) (response []byte, err error) {
 
 	response = binary.BigEndian.AppendUint32(response, uint32(correlationID)) // Correlation ID
 	response = binary.BigEndian.AppendUint16(response, uint16(errorCode))     // 16 bytes: Error Code
-	response = binary.BigEndian.AppendUint16(response, uint16(2))             // 08 bytes: Api Versions Length
+	response = append(response, byte(2))                                      // 08 bytes: Api Versions Length
 	response = binary.BigEndian.AppendUint16(response, uint16(18))            // 16 bytes: Api Key
 	response = binary.BigEndian.AppendUint16(response, uint16(3))             // 16 bytes: Min Version
 	response = binary.BigEndian.AppendUint16(response, uint16(4))             // 16 bytes: Max Version
