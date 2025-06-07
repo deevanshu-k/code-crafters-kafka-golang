@@ -134,13 +134,22 @@ func buildResponse(message []byte) (response []byte, err error) {
 
 	response = binary.BigEndian.AppendUint32(response, uint32(correlationID)) // Correlation ID
 	response = binary.BigEndian.AppendUint16(response, uint16(errorCode))     // 16 bytes: Error Code
-	response = append(response, byte(2))                                      // 08 bytes: Api Versions Length
-	response = binary.BigEndian.AppendUint16(response, uint16(18))            // 16 bytes: Api Key
-	response = binary.BigEndian.AppendUint16(response, uint16(3))             // 16 bytes: Min Version
-	response = binary.BigEndian.AppendUint16(response, uint16(4))             // 16 bytes: Max Version
-	response = append(response, byte(0))                                      // 01 byte: Tagged Fields
-	response = binary.BigEndian.AppendUint32(response, uint32(0))             // 32 bytes: Throttle Time
-	response = append(response, byte(0))                                      // 01 byte: Tagged Fields
+	response = append(response, byte(3))                                      // 08 bytes: Api Versions Length
+
+	// FOR APIVersions
+	response = binary.BigEndian.AppendUint16(response, uint16(18)) // 16 bytes: Api Key
+	response = binary.BigEndian.AppendUint16(response, uint16(3))  // 16 bytes: Min Version
+	response = binary.BigEndian.AppendUint16(response, uint16(4))  // 16 bytes: Max Version
+	response = append(response, byte(0))                           // 01 byte: Tagged Fields
+
+	// For DescribeTopicPartitions
+	response = binary.BigEndian.AppendUint16(response, uint16(75)) // 16 bytes: Api Key
+	response = binary.BigEndian.AppendUint16(response, uint16(0))  // 16 bytes: Min Version
+	response = binary.BigEndian.AppendUint16(response, uint16(0))  // 16 bytes: Max Version
+	response = append(response, byte(0))                           // 01 byte: Tagged Fields
+
+	response = binary.BigEndian.AppendUint32(response, uint32(0)) // 32 bytes: Throttle Time
+	response = append(response, byte(0))                          // 01 byte: Tagged Fields
 
 	messageSize := make([]byte, 4)
 	binary.BigEndian.PutUint32(messageSize, uint32(len(response)))
