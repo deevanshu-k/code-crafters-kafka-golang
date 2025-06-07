@@ -37,27 +37,29 @@ func main() {
 
 func handleRequest(conn net.Conn) {
 	defer conn.Close()
+	for {
+		msg, err := readMessage(conn)
+		if err != nil {
+			fmt.Println("> Error reading message: ", err.Error())
+			break
+		}
 
-	msg, err := readMessage(conn)
-	if err != nil {
-		fmt.Println("> Error reading message: ", err.Error())
-		return
+		response, err := buildResponse(msg)
+		if err != nil {
+			fmt.Println("> Error building response: ", err.Error())
+			break
+		}
+
+		fmt.Printf("> Request: %x\n", msg)
+		fmt.Printf("> Response: %x\n", response)
+
+		if _, err := conn.Write(response); err != nil {
+			fmt.Println("> Error writing response: ", err.Error())
+			break
+		}
+		fmt.Println("> Response sent successfully")
 	}
-
-	response, err := buildResponse(msg)
-	if err != nil {
-		fmt.Println("> Error building response: ", err.Error())
-		return
-	}
-
-	fmt.Printf("> Request: %x\n", msg)
-	fmt.Printf("> Response: %x\n", response)
-
-	if _, err := conn.Write(response); err != nil {
-		fmt.Println("> Error writing response: ", err.Error())
-		return
-	}
-	fmt.Println("> Response sent successfully")
+	fmt.Println("> Connection closed")
 }
 
 // READS MESSAGES FROM THE CONNECTION
