@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/binary"
-	"fmt"
 )
 
 type ResponseHandler func([]byte) ([]byte, error)
@@ -91,26 +90,17 @@ func describeTopicPartitions(message []byte) (response []byte, err error) {
 	correlationID := int32(binary.BigEndian.Uint32(message[4:8])) // Correlation ID
 	errorCode := int16(3)                                         // UNKNOWN_TOPIC_OR_PARTITION
 
-	fmt.Println("> Describe Partition")
-
 	// ---- Response header ---- //
 	response = binary.BigEndian.AppendUint32(response, uint32(correlationID)) // Correlation ID
 	response = append(response, byte(0))                                      // 01 byte: Tagged Fields
 
 	// ---- Response body ---- //
-	response = binary.BigEndian.AppendUint32(response, 0) // 32 bytes: Throttle Time
-
+	response = binary.BigEndian.AppendUint32(response, 0)    // 32 bytes: Throttle Time
 	clientIdLength := binary.BigEndian.Uint16(message[8:10]) // Client ID Length
-
-	totalHeaderLength := 10 + clientIdLength + 1 // Total header length
-
-	noOfTopics := int8(message[totalHeaderLength]) // 01 byte: Number of topics
-
-	response = append(response, byte(noOfTopics)) // 01 byte: Topics Array Length
-
-	offset := totalHeaderLength + 1 // Offset to start reading topics
-
-	fmt.Printf("> Befor Loop\n   > Response: %x\n", response)
+	totalHeaderLength := 10 + clientIdLength + 1             // Total header length
+	noOfTopics := int8(message[totalHeaderLength])           // 01 byte: Number of topics
+	response = append(response, byte(noOfTopics))            // 01 byte: Topics Array Length
+	offset := totalHeaderLength + 1                          // Offset to start reading topics
 
 	for i := 0; i < int(noOfTopics-1); i++ {
 		topicNameLength := uint8(message[offset])                       // 01 byte: Topic Name Length
@@ -127,14 +117,10 @@ func describeTopicPartitions(message []byte) (response []byte, err error) {
 		response = append(response, byte(0x01))                               // 2 bytes Partition Array Length
 		response = binary.BigEndian.AppendUint32(response, 0x00000df8)        // 4 bytes Topic Authorised Operations
 		response = append(response, byte(0x00))                               // 1 bytes Tag Buffer
-		fmt.Printf("> In Loop \n   > Response: %x\n", response)
 	}
 
-	fmt.Printf("> After Loop \n   > Response: %x\n", response)
-
 	response = append(response, byte(0xff)) // 01 byte: next cursor
-
-	response = append(response, byte(0)) // 01 byte: Tagged Fields
+	response = append(response, byte(0))    // 01 byte: Tagged Fields
 
 	return response, nil
 }
