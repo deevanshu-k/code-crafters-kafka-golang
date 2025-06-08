@@ -123,38 +123,21 @@ func buildResponse(message []byte) (response []byte, err error) {
 		return nil, fmt.Errorf("message too short")
 	}
 
-	// apiKey := int16(binary.BigEndian.Uint16(message[0:2]))        // Api Key
-	apiVersion := int16(binary.BigEndian.Uint16(message[2:4]))    // Api Version
-	correlationID := int32(binary.BigEndian.Uint32(message[4:8])) // Correlation ID
-
-	errorCode := int16(0)
-	if apiVersion < 0 || apiVersion > 4 {
-		errorCode = 35 // UNSUPPORTED VERSION
+	apiKey := GetAPIKeyFromUint16(binary.BigEndian.Uint16(message[0:2])) // Api Key
+	handler, exists := keyToResponseHandlers[apiKey]
+	if !exists {
+		return nil, fmt.Errorf("unsupported API key: %d", apiKey)
 	}
 
-	response = binary.BigEndian.AppendUint32(response, uint32(correlationID)) // Correlation ID
-	response = binary.BigEndian.AppendUint16(response, uint16(errorCode))     // 16 bytes: Error Code
-	response = append(response, byte(3))                                      // 08 bytes: Api Versions Length
-
-	// FOR APIVersions
-	response = binary.BigEndian.AppendUint16(response, uint16(18)) // 16 bytes: Api Key
-	response = binary.BigEndian.AppendUint16(response, uint16(3))  // 16 bytes: Min Version
-	response = binary.BigEndian.AppendUint16(response, uint16(4))  // 16 bytes: Max Version
-	response = append(response, byte(0))                           // 01 byte: Tagged Fields
-
-	// For DescribeTopicPartitions
-	response = binary.BigEndian.AppendUint16(response, uint16(75)) // 16 bytes: Api Key
-	response = binary.BigEndian.AppendUint16(response, uint16(0))  // 16 bytes: Min Version
-	response = binary.BigEndian.AppendUint16(response, uint16(0))  // 16 bytes: Max Version
-	response = append(response, byte(0))                           // 01 byte: Tagged Fields
-
-	response = binary.BigEndian.AppendUint32(response, uint32(0)) // 32 bytes: Throttle Time
-	response = append(response, byte(0))                          // 01 byte: Tagged Fields
+	res, err := handler(message)
+	if err != nil {
+		return nil, fmt.Errorf("error handling API key %d: %w", apiKey, err)
+	}
 
 	messageSize := make([]byte, 4)
-	binary.BigEndian.PutUint32(messageSize, uint32(len(response)))
+	binary.BigEndian.PutUint32(messageSize, uint32(len(res)))
 
-	response = append(messageSize, response...) // Prepend the size of the response
+	response = append(messageSize, res...) // Prepend the size of the response
 
 	return response, nil
 }
